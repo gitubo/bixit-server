@@ -38,7 +38,11 @@ http::response<http::string_body> HttpRouter::server_error(const http::request<h
     return res;
 }
 
-http::response<http::string_body> HttpRouter::handle_request(const http::request<http::string_body>& req, datacarder::SchemaCatalog* catalog) {
+http::response<http::string_body> HttpRouter::handle_request(
+    const http::request<http::string_body>& req, 
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog
+//    bixit::catalog::SchemaCatalog* catalog
+) {
     // Accepted methods
     if( req.method() != http::verb::get &&
         req.method() != http::verb::post &&

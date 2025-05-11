@@ -2,7 +2,7 @@
 
 http::response<http::string_body> handle_get_root(
     const http::request<http::string_body>& req, 
-    datacarder::SchemaCatalog* catalog,
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog,
     http::response<http::string_body>& res) 
 {
 
@@ -15,7 +15,7 @@ http::response<http::string_body> handle_get_root(
 
 http::response<http::string_body> handle_post_json_to_bitstream(
     const http::request<http::string_body>& req, 
-    datacarder::SchemaCatalog* catalog,
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog,
     http::response<http::string_body>& res
 ) {
     if (req.body().empty())
@@ -37,7 +37,7 @@ http::response<http::string_body> handle_post_json_to_bitstream(
             return HttpRouter::not_found(req, "Schema '"+payload["message_type"].get<std::string>()+"' has not been found");
         }
         nlohmann::ordered_json inputJson = payload["message"].flatten();
-        datacarder::BitStream result; 
+        bixit::bitstream::BitStream result; 
         int retVal = rn_b2j->json_to_bitstream(inputJson, result);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
@@ -65,7 +65,7 @@ http::response<http::string_body> handle_post_json_to_bitstream(
 
 http::response<http::string_body> handle_post_json_to_bitstream_with_schema(
     const http::request<http::string_body>& req, 
-    datacarder::SchemaCatalog* catalog,
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog,
     http::response<http::string_body>& res
 ) {
     if (req.body().empty())
@@ -90,7 +90,7 @@ http::response<http::string_body> handle_post_json_to_bitstream_with_schema(
             return HttpRouter::server_error(req, "Schema has not been correctly parsed");
         }
         nlohmann::ordered_json inputJson = payload["message"].flatten();
-        datacarder::BitStream result; 
+        bixit::bitstream::BitStream result; 
         int retVal = rn_b2j->json_to_bitstream(inputJson, result);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
@@ -115,7 +115,7 @@ http::response<http::string_body> handle_post_json_to_bitstream_with_schema(
 
 http::response<http::string_body> handle_post_bitstream_to_json_with_schema(
     const http::request<http::string_body>& req, 
-    datacarder::SchemaCatalog* catalog,
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog,
     http::response<http::string_body>& res
 ) {
     if (req.body().empty())
@@ -128,28 +128,37 @@ http::response<http::string_body> handle_post_bitstream_to_json_with_schema(
         // Parse the JSON content of the body
         nlohmann::json payload = nlohmann::json::parse(req.body());
 
-        if(!payload.contains("message_base64") || !payload["message_base64"].is_string()){
+        if (!payload.contains("message_base64") || !payload["message_base64"].is_string()) {
             return HttpRouter::bad_request(req, "Field 'message_base64' is missing or it is not a string");
-        } else if(!payload.contains("schema") || !payload["schema"].is_object()){
+        }
+
+        if (!payload.contains("schema") || !payload["schema"].is_object()) {
             return HttpRouter::bad_request(req, "Field 'schema' is missing or it is not an object");
         }
-    
+
+        size_t message_base64_length = 0;
+        if (payload.contains("message_base64_length") && payload["message_base64_length"].is_number_unsigned()) {
+            message_base64_length = payload["message_base64_length"].get<size_t>();
+        }
+
         auto start = std::chrono::high_resolution_clock::now();
         auto rn_b2j = catalog->parseSchemaOnTheFly(payload["schema"]);
         if(rn_b2j == nullptr){
             return HttpRouter::server_error(req, "Schema has not been correctly parsed");
         }
-        auto bs_b64 = datacarder::BitStream(payload["message_base64"]);
+        auto bs_b64 = bixit::bitstream::BitStream(payload["message_base64"], message_base64_length);
         nlohmann::ordered_json result;
         int retVal = rn_b2j->bitstream_to_json(bs_b64, result);
-
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
         nlohmann::ordered_json responseBody;
         responseBody["metadata"] = {};
         responseBody["metadata"]["elapsed_time_ns"] = duration.count();
-        responseBody["data"] = result.unflatten();
-        
+        try {
+            responseBody["data"] = result.unflatten();
+        } catch (const nlohmann::json::exception& e) {
+            std::cerr << "Errore durante unflatten: " << e.what() << std::endl;
+        }
         // Return a success response with the parsed data (you can format the response as needed)
         res.set(http::field::content_type, "application/json");
         res.body() = responseBody.dump();
@@ -165,7 +174,7 @@ http::response<http::string_body> handle_post_bitstream_to_json_with_schema(
 
 http::response<http::string_body> handle_post_bitstream_to_json(
     const http::request<http::string_body>& req, 
-    datacarder::SchemaCatalog* catalog,
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog,
     http::response<http::string_body>& res
 ) {
     if (req.body().empty())
@@ -184,12 +193,17 @@ http::response<http::string_body> handle_post_bitstream_to_json(
             return HttpRouter::bad_request(req, "Field 'message_type' is missing or it is not a string");
         } 
     
+        size_t message_base64_length = 0;
+        if (payload.contains("message_base64_length") && payload["message_base64_length"].is_number_unsigned()) {
+            message_base64_length = payload["message_base64_length"].get<size_t>();
+        }
+        
         auto start = std::chrono::high_resolution_clock::now();
-        auto rn_b2j = catalog->getAbstractChain(payload["message_type"]);
+        auto rn_b2j = catalog->getAbstractChain(payload["message_type"].get<std::string>());
         if(!rn_b2j){
             return HttpRouter::not_found(req, "Schema '"+payload["message_type"].get<std::string>()+"' has not been found");
         }
-        auto bs_b64 = datacarder::BitStream(payload["message_base64"]);
+        auto bs_b64 = bixit::bitstream::BitStream(payload["message_base64"].get<std::string>(), message_base64_length);
         nlohmann::ordered_json result;
         int retVal = rn_b2j->bitstream_to_json(bs_b64, result);
         auto end = std::chrono::high_resolution_clock::now();

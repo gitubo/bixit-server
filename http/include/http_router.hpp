@@ -6,7 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "datacarder.hpp"
+#include <bixit.hpp>
 
 
 namespace beast = boost::beast;
@@ -25,7 +25,8 @@ namespace std {
 
 using Handler = std::function<http::response<http::string_body>(
     const http::request<http::string_body>&, 
-    datacarder::SchemaCatalog*,
+    std::shared_ptr<bixit::catalog::SchemaCatalog>,
+    //bixit::catalog::SchemaCatalog*,
     http::response<http::string_body>&
 )>;
 
@@ -39,7 +40,7 @@ class HttpRouter {
         void add_route(http::verb method, const boost::core::string_view& path, Handler handler) {
             routes_[{method, path}] = handler;
         };
-        http::response<http::string_body> handle_request(const http::request<http::string_body>&, datacarder::SchemaCatalog*);
+        http::response<http::string_body> handle_request(const http::request<http::string_body>&, std::shared_ptr<bixit::catalog::SchemaCatalog>);
         static http::response<http::string_body> bad_request(const http::request<http::string_body>&, beast::string_view);
         static http::response<http::string_body> not_found(const http::request<http::string_body>&, beast::string_view);
         static http::response<http::string_body> server_error(const http::request<http::string_body>&, beast::string_view);

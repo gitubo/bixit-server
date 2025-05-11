@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.14)
-project(server_http)
+project(bixit_http)
 
 find_package(Boost REQUIRED COMPONENTS context)
-find_library(Datacarder NAMES datacarder PATHS /app/build/datacarder)
+find_library(BIXIT_LIB NAMES bixit PATHS /app/build/bixit)
+message(STATUS "BIXIT_LIB = ${BIXIT_LIB}")
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LUAJIT REQUIRED luajit)
 
-add_executable(server_http src/server_http.cpp src/http_router.cpp src/handlers.cpp)
+add_executable(bixit_http src/server_http.cpp src/http_router.cpp src/handlers.cpp)
 
-target_include_directories(server_http PRIVATE include /app/datacarder/include /third_party/json-3.11.2/include)
-target_link_libraries(server_http PRIVATE ${Datacarder} boost_context ${LUAJIT_LIBRARIES} -ldl -lm)
+target_include_directories(bixit_http PRIVATE include /app/build/bixit/include /third_party/json-3.11.2/include)
+target_link_libraries(bixit_http PRIVATE ${BIXIT_LIB} boost_context ${LUAJIT_LIBRARIES} dl m)

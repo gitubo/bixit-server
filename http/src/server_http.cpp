@@ -16,7 +16,7 @@
 
 #include "http_router.hpp"
 #include "handlers.hpp"
-#include "datacarder.hpp"
+#include <bixit.hpp>
 
 namespace beast = boost::beast;         
 namespace http = beast::http;           
@@ -36,7 +36,8 @@ void
 do_session(
     beast::tcp_stream& stream,
 //    std::shared_ptr<std::string const> const& doc_root,
-    datacarder::SchemaCatalog* catalog,
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog,
+//    bixit::catalog::SchemaCatalog* catalog,
     net::yield_context yield)
 {
 
@@ -83,7 +84,8 @@ void
 do_listen(
     net::io_context& ioc,
     tcp::endpoint endpoint,
-    datacarder::SchemaCatalog* catalog,
+    std::shared_ptr<bixit::catalog::SchemaCatalog> catalog,
+//    bixit::catalog::SchemaCatalog* catalog,
     net::yield_context yield)
 {
     beast::error_code ec;
@@ -146,11 +148,10 @@ int main(int argc, char* argv[])
     }
     auto const address = net::ip::make_address(argv[1]);
     auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
-    auto const doc_root = std::make_shared<std::string>(argv[3]);
+    auto const doc_root = std::string(argv[3]);
     auto const threads = std::max<int>(1, std::atoi(argv[4]));
 
-    datacarder::SchemaCatalog catalog(*doc_root, datacarder::Logger::Level::DEBUG);
-
+    auto catalog = std::make_shared<bixit::catalog::SchemaCatalog>(doc_root, bixit::logger::Logger::Level::DEBUG);
     net::io_context ioc{threads};
 
     // Spawn a listening port
@@ -159,8 +160,8 @@ int main(int argc, char* argv[])
             &do_listen,
             std::ref(ioc),
             tcp::endpoint{address, port},
-//            doc_root,
-            &catalog,
+//            &catalog,
+            catalog,
             std::placeholders::_1),
         [](std::exception_ptr ex)
         {
